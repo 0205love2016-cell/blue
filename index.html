@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kiosk 藍牙控制器</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-card: #1a1d27;
+            --bg-input: #242836;
+            --border-color: #2e3348;
+            --text-primary: #e8eaf0;
+            --text-secondary: #9ca3b8;
+            --accent-blue: #5b8af5;
+            --accent-green: #4ade80;
+            --accent-red: #f87171;
+            --accent-yellow: #fbbf24;
+            --radius: 12px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 24px 16px;
+        }
+        .container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 28px 24px;
+            border-radius: 16px;
+            max-width: 440px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        h1 {
+            font-size: 22px; font-weight: 700; margin-bottom: 6px;
+            background: linear-gradient(135deg, var(--accent-blue), #a78bfa);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .subtitle { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+        .form-group { margin-bottom: 18px; }
+        label {
+            display: block; margin-bottom: 6px; font-weight: 600; font-size: 13px;
+            color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        input[type="number"], textarea {
+            width: 100%; padding: 12px 14px; border: 1px solid var(--border-color);
+            border-radius: var(--radius); font-size: 14px; font-family: 'Inter', sans-serif;
+            background: var(--bg-input); color: var(--text-primary); transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus { outline: none; border-color: var(--accent-blue); }
+        textarea { resize: vertical; line-height: 1.6; }
+
+        .scan-mode { display: flex; gap: 8px; margin-bottom: 18px; }
+        .scan-mode button {
+            flex: 1; padding: 10px 8px; border-radius: var(--radius);
+            border: 1px solid var(--border-color); background: var(--bg-input);
+            color: var(--text-secondary); font-size: 12px; font-weight: 600;
+            font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s;
+        }
+        .scan-mode button.active {
+            border-color: var(--accent-blue);
+            background: rgba(91, 138, 245, 0.15);
+            color: var(--accent-blue);
+        }
+
+        .btn-connect {
+            background: linear-gradient(135deg, var(--accent-blue), #7c5bf5);
+            color: #fff; border: none; padding: 14px 20px; border-radius: var(--radius);
+            font-size: 15px; font-weight: 600; font-family: 'Inter', sans-serif;
+            cursor: pointer; width: 100%; transition: opacity 0.2s, transform 0.1s;
+        }
+        .btn-connect:hover { opacity: 0.9; }
+        .btn-connect:active { transform: scale(0.98); }
+        .btn-connect:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-show {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: #fff; border: none; padding: 18px 20px; border-radius: var(--radius);
+            font-size: 18px; font-weight: 700; font-family: 'Inter', sans-serif;
+            cursor: pointer; width: 100%; transition: opacity 0.2s, transform 0.1s;
+            margin-top: 12px; display: none; letter-spacing: 1px;
+        }
+        .btn-show:hover { opacity: 0.9; }
+        .btn-show:active { transform: scale(0.95); }
+        .btn-show:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-show.visible { display: block; animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+            50% { box-shadow: 0 0 20px 4px rgba(239,68,68,0.3); }
+        }
+
+        .status-box {
+            margin-top: 16px; padding: 12px 14px; border-radius: var(--radius);
+            font-size: 13px; line-height: 1.6; display: none; white-space: pre-wrap;
+        }
+        .status-box.info    { display:block; background:rgba(91,138,245,0.1);  border:1px solid rgba(91,138,245,0.25);  color:var(--accent-blue); }
+        .status-box.success { display:block; background:rgba(74,222,128,0.1);  border:1px solid rgba(74,222,128,0.25);  color:var(--accent-green); }
+        .status-box.error   { display:block; background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.25); color:var(--accent-red); }
+        .status-box.warn    { display:block; background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.2);   color:var(--accent-yellow); }
+
+        /* ---- 診斷面板 ---- */
+        .diag-panel {
+            margin-top: 20px; padding: 16px; border-radius: var(--radius);
+            background: var(--bg-input); border: 1px solid var(--border-color);
+        }
+        .diag-panel h2 { font-size: 14px; margin-bottom: 12px; color: var(--text-secondary); }
+        .diag-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border-color);
+        }
+        .diag-row:last-child { border-bottom: none; }
+        .diag-label { color: var(--text-secondary); }
+        .diag-val { font-weight: 600; }
+        .diag-val.ok  { color: var(--accent-green); }
+        .diag-val.fail{ color: var(--accent-red); }
+        .diag-val.warn{ color: var(--accent-yellow); }
+
+        .tip-box {
+            margin-top: 20px; padding: 12px 14px; border-radius: var(--radius);
+            font-size: 12px; line-height: 1.7;
+            background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.2);
+            color: var(--accent-yellow);
+        }
+        .tip-box strong { display: block; margin-bottom: 4px; font-size: 13px; }
+
+        .volume-panel {
+            margin-top: 16px; padding: 16px; border-radius: var(--radius);
+            background: var(--bg-input); border: 1px solid var(--border-color);
+            display: none;
+        }
+        .volume-panel.visible { display: block; }
+        .volume-panel h2 { font-size: 14px; margin-bottom: 12px; color: var(--text-secondary); }
+        .volume-slider {
+            width: 100%; height: 8px; -webkit-appearance: none; appearance: none;
+            background: var(--border-color); border-radius: 4px; outline: none;
+            margin: 8px 0;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 24px; height: 24px; border-radius: 50%;
+            background: var(--accent-blue); cursor: pointer;
+        }
+        .volume-label { font-size: 28px; font-weight: 700; color: var(--text-primary); text-align: center; display: block; margin: 4px 0; }
+        .volume-btns { display: flex; gap: 8px; margin-top: 10px; }
+        .volume-btns button {
+            flex: 1; padding: 10px; border-radius: var(--radius);
+            border: 1px solid var(--border-color); background: var(--bg-card);
+            color: var(--text-primary); font-size: 13px; font-weight: 600;
+            font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s;
+        }
+        .volume-btns button:active { transform: scale(0.95); }
+        .volume-btns button.mute { border-color: var(--accent-red); color: var(--accent-red); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Kiosk 藍牙控制器</h1>
+    <p class="subtitle">透過 Web Bluetooth 向 Kiosk 發送輪播指令</p>
+
+    <!-- 環境診斷 -->
+    <div class="diag-panel" id="diagPanel">
+        <h2>環境診斷</h2>
+        <div class="diag-row">
+            <span class="diag-label">HTTPS 安全環境</span>
+            <span class="diag-val" id="diagHttps">檢測中...</span>
+        </div>
+        <div class="diag-row">
+            <span class="diag-label">Web Bluetooth API</span>
+            <span class="diag-val" id="diagBtApi">檢測中...</span>
+        </div>
+        <div class="diag-row">
+            <span class="diag-label">藍牙硬體可用</span>
+            <span class="diag-val" id="diagBtHw">檢測中...</span>
+        </div>
+        <div class="diag-row">
+            <span class="diag-label">作業系統</span>
+            <span class="diag-val" id="diagOs">檢測中...</span>
+        </div>
+        <div class="diag-row">
+            <span class="diag-label">瀏覽器</span>
+            <span class="diag-val" id="diagBrowser">檢測中...</span>
+        </div>
+    </div>
+
+    <div id="envWarning" class="status-box" style="margin-top:16px;"></div>
+
+    <!-- 掃描模式 -->
+    <div class="form-group" style="margin-top:20px;">
+        <label>掃描模式</label>
+        <div class="scan-mode">
+            <button id="modeAll" class="active" onclick="setScanMode('all')">掃描所有裝置</button>
+            <button id="modeFilter" onclick="setScanMode('filter')">僅限 Kiosk UUID</button>
+            <button id="modeName" onclick="setScanMode('name')">依名稱搜尋</button>
+        </div>
+    </div>
+
+    <div class="form-group" id="nameGroup" style="display:none;">
+        <label for="deviceName">裝置名稱 (部分比對)</label>
+        <input type="text" id="deviceName" value="t982" placeholder="例如 t982 或 Kiosk"
+               style="width:100%;padding:12px 14px;border:1px solid var(--border-color);border-radius:var(--radius);font-size:14px;font-family:'Inter',sans-serif;background:var(--bg-input);color:var(--text-primary);">
+    </div>
+
+    <div class="form-group">
+        <label for="interval">輪播間隔時間 (秒)</label>
+        <input type="number" id="interval" value="3" min="1" max="60">
+    </div>
+
+    <div class="form-group">
+        <label for="images">圖片網址清單 (每行一個)</label>
+        <textarea id="images" rows="5">https://i.ibb.co/MxPQbCm6/01.jpg
+https://i.ibb.co/4wBphjK5/02.jpg
+https://i.ibb.co/R4tyGkfB/03.jpg</textarea>
+    </div>
+
+    <div class="form-group">
+        <label>或選擇本地圖片 (會壓縮後透過 BLE 傳送)</label>
+        <input type="file" id="localImages" accept="image/*" multiple
+               style="width:100%;padding:10px;border:1px dashed var(--accent-blue);border-radius:var(--radius);background:var(--bg-input);color:var(--text-primary);font-family:'Inter',sans-serif;cursor:pointer;">
+        <div id="previewBox" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
+        <div id="localStatus" style="font-size:12px;color:var(--text-secondary);margin-top:6px;"></div>
+    </div>
+
+    <button class="btn-connect" id="connectBtn">Step 1: 發送圖片 + 靜音</button>
+    <button class="btn-show" id="showBtn">Step 2: 切換到輪播畫面</button>
+
+    <!-- 音量控制 -->
+    <div class="volume-panel" id="volumePanel">
+        <h2>音量控制</h2>
+        <span class="volume-label" id="volumeLabel">0%</span>
+        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="0">
+        <div class="volume-btns">
+            <button class="mute" onclick="setVolume(0)">0% 靜音</button>
+            <button onclick="setVolume(30)">30%</button>
+            <button onclick="setVolume(60)">60%</button>
+            <button onclick="setVolume(100)">100%</button>
+        </div>
+    </div>
+
+    <div class="status-box" id="statusBox"></div>
+
+    <div class="tip-box">
+        <strong>掃描不到裝置？請逐項確認：</strong>
+        1. Android 手機必須開啟「定位服務 (GPS)」，BLE 掃描強制要求。<br>
+        2. 瀏覽器需授予「藍牙」與「位置」權限（Chrome 設定 > 網站設定）。<br>
+        3. Kiosk 設備需已安裝並啟動 KioskReceiver App（正在 BLE 廣播中）。<br>
+        4. iOS Safari 不支援 Web Bluetooth，請改用 Bluefy 瀏覽器。<br>
+        5. 先使用「掃描所有裝置」模式確認是否能看到任何 BLE 裝置。
+    </div>
+</div>
+
+<script>
+    /* ==== 常數 ==== */
+    var SERVICE_UUID = "12345678-1234-5678-9abc-def012345678";
+    var CHAR_UUID    = "12345678-1234-5678-9abc-def012345679";
+    var scanMode = "all";
+    var cachedDevice = null;
+    var cachedCharacteristic = null;
+    var localDataUris = []; /* base64 data URIs from local file picker */
+
+    /* ==== Local image handling ==== */
+    var IMAGE_MAX_WIDTH = 800;
+    var IMAGE_QUALITY = 0.5;
+
+    document.getElementById("localImages").addEventListener("change", async function(e) {
+        var files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        localDataUris = [];
+        var previewBox = document.getElementById("previewBox");
+        var localStatus = document.getElementById("localStatus");
+        previewBox.innerHTML = "";
+        localStatus.textContent = "Processing " + files.length + " images...";
+
+        for (var i = 0; i < files.length; i++) {
+            var dataUri = await compressImage(files[i], IMAGE_MAX_WIDTH, IMAGE_QUALITY);
+            localDataUris.push(dataUri);
+
+            /* Show preview thumbnail */
+            var img = document.createElement("img");
+            img.src = dataUri;
+            img.style.cssText = "width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color);";
+            previewBox.appendChild(img);
+        }
+
+        var totalKb = 0;
+        for (var j = 0; j < localDataUris.length; j++) {
+            totalKb += Math.round(localDataUris[j].length / 1024);
+        }
+        localStatus.textContent = localDataUris.length + " images ready (" + totalKb + " KB total, compressed)";
+
+        /* Clear URL textarea when local images are selected */
+        document.getElementById("images").value = "";
+    });
+
+    /**
+     * Compress an image file using Canvas.
+     *
+     * @param {File} file - Image file from input.
+     * @param {number} maxWidth - Maximum width in pixels.
+     * @param {number} quality - JPEG quality (0-1).
+     * @returns {Promise<string>} base64 data URI.
+     */
+    function compressImage(file, maxWidth, quality) {
+        return new Promise(function(resolve) {
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                var img = new Image();
+                img.onload = function() {
+                    var canvas = document.createElement("canvas");
+                    var w = img.width, h = img.height;
+                    if (w > maxWidth) {
+                        h = Math.round((h * maxWidth) / w);
+                        w = maxWidth;
+                    }
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL("image/jpeg", quality));
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    /* ==== 環境診斷 ==== */
+    (function runDiagnostics() {
+        var warnings = [];
+
+        /* HTTPS */
+        var isSecure = location.protocol === "https:" || location.hostname === "localhost";
+        var elHttps = document.getElementById("diagHttps");
+        elHttps.textContent = isSecure ? "OK" : "非安全環境";
+        elHttps.className = "diag-val " + (isSecure ? "ok" : "fail");
+        if (!isSecure) warnings.push("目前不在 HTTPS 環境，Web Bluetooth 無法運作。");
+
+        /* Web Bluetooth API */
+        var hasBtApi = !!navigator.bluetooth;
+        var elBtApi = document.getElementById("diagBtApi");
+        elBtApi.textContent = hasBtApi ? "支援" : "不支援";
+        elBtApi.className = "diag-val " + (hasBtApi ? "ok" : "fail");
+        if (!hasBtApi) warnings.push("此瀏覽器不支援 Web Bluetooth API。");
+
+        /* 藍牙硬體 */
+        var elBtHw = document.getElementById("diagBtHw");
+        if (hasBtApi && navigator.bluetooth.getAvailability) {
+            navigator.bluetooth.getAvailability().then(function(available) {
+                elBtHw.textContent = available ? "可用" : "不可用或未開啟";
+                elBtHw.className = "diag-val " + (available ? "ok" : "fail");
+                if (!available) {
+                    warnings.push("藍牙硬體不可用，請確認手機藍牙已開啟。");
+                    showWarnings(warnings);
+                }
+            });
+        } else {
+            elBtHw.textContent = "無法偵測";
+            elBtHw.className = "diag-val warn";
+        }
+
+        /* OS */
+        var ua = navigator.userAgent;
+        var os = "未知";
+        var elOs = document.getElementById("diagOs");
+        if (/iPhone|iPad|iPod/.test(ua)) {
+            os = "iOS";
+            warnings.push("iOS Safari 不支援 Web Bluetooth，請改用 Bluefy 瀏覽器。");
+        } else if (/Android/.test(ua)) {
+            os = "Android";
+        } else if (/Windows/.test(ua)) {
+            os = "Windows";
+        } else if (/Mac/.test(ua)) {
+            os = "macOS";
+        }
+        elOs.textContent = os;
+        elOs.className = "diag-val " + (os === "iOS" ? "warn" : "ok");
+
+        /* Browser */
+        var browser = "未知";
+        var elBr = document.getElementById("diagBrowser");
+        if (/CriOS/.test(ua))      browser = "Chrome (iOS)";
+        else if (/Chrome/.test(ua) && !/Edg/.test(ua)) browser = "Chrome";
+        else if (/Edg/.test(ua))    browser = "Edge";
+        else if (/Safari/.test(ua)) browser = "Safari";
+        else if (/Firefox/.test(ua))browser = "Firefox";
+
+        var browserOk = (browser === "Chrome" || browser === "Edge");
+        elBr.textContent = browser;
+        elBr.className = "diag-val " + (browserOk ? "ok" : (browser === "Chrome (iOS)" ? "warn" : "fail"));
+
+        if (browser === "Safari")  warnings.push("Safari 不支援 Web Bluetooth，請改用 Chrome。");
+        if (browser === "Firefox") warnings.push("Firefox 不支援 Web Bluetooth，請改用 Chrome。");
+        if (browser === "Chrome (iOS)") warnings.push("iOS 版 Chrome 不支援 Web Bluetooth，請改用 Bluefy。");
+
+        if (os === "Android") {
+            warnings.push("Android 提醒：BLE 掃描需要開啟「定位服務 (GPS)」，請確認已開啟。");
+        }
+
+        showWarnings(warnings);
+    })();
+
+    function showWarnings(warnings) {
+        var el = document.getElementById("envWarning");
+        if (warnings.length > 0) {
+            el.textContent = warnings.join("\n");
+            el.className = "status-box warn";
+        } else {
+            el.style.display = "none";
+        }
+    }
+
+    /* ==== 掃描模式切換 ==== */
+    function setScanMode(mode) {
+        scanMode = mode;
+        document.getElementById("modeAll").classList.toggle("active", mode === "all");
+        document.getElementById("modeFilter").classList.toggle("active", mode === "filter");
+        document.getElementById("modeName").classList.toggle("active", mode === "name");
+        document.getElementById("nameGroup").style.display = (mode === "name") ? "block" : "none";
+    }
+
+    function setStatus(msg, type) {
+        var box = document.getElementById("statusBox");
+        box.textContent = msg;
+        box.className = "status-box " + type;
+    }
+
+    /* ==== BLE 連線與發送 ==== */
+    async function connectAndGetCharacteristic() {
+        var requestOptions;
+        if (scanMode === "filter") {
+            requestOptions = { filters: [{ services: [SERVICE_UUID] }] };
+        } else if (scanMode === "name") {
+            var nameVal = document.getElementById("deviceName").value.trim();
+            if (!nameVal) { throw new Error("請輸入裝置名稱"); }
+            requestOptions = { filters: [{ namePrefix: nameVal }], optionalServices: [SERVICE_UUID] };
+        } else {
+            requestOptions = { acceptAllDevices: true, optionalServices: [SERVICE_UUID] };
+        }
+
+        var device = await navigator.bluetooth.requestDevice(requestOptions);
+        cachedDevice = device;
+        var deviceName = device.name || device.id || "未知裝置";
+
+        setStatus("正在連接至「" + deviceName + "」...", "info");
+        var server = await device.gatt.connect();
+
+        setStatus("已連線，正在取得 BLE Service...", "info");
+        var service = await server.getPrimaryService(SERVICE_UUID);
+
+        setStatus("正在取得 Characteristic...", "info");
+        cachedCharacteristic = await service.getCharacteristic(CHAR_UUID);
+        return cachedCharacteristic;
+    }
+
+    async function sendCommand(jsonObj) {
+        var char = cachedCharacteristic;
+
+        /* 如果沒有快取或已斷線，重新連線 */
+        if (!char || !cachedDevice || !cachedDevice.gatt.connected) {
+            setStatus("正在搜尋藍牙裝置...\n請在彈出視窗中選擇 Kiosk 設備。", "info");
+            char = await connectAndGetCharacteristic();
+        }
+
+        var payload = JSON.stringify(jsonObj);
+        var encoder = new TextEncoder();
+        var data = encoder.encode(payload);
+        var CHUNK_SIZE = 500; /* Leave room for 1-byte header */
+
+        if (data.byteLength <= CHUNK_SIZE) {
+            /* Small payload: send as single write (backward compatible) */
+            await char.writeValueWithoutResponse(data);
+        } else {
+            /* Large payload: chunked transfer protocol */
+            /* 1. Send start header: 0x01 + 4 bytes big-endian length */
+            var startPacket = new Uint8Array(5);
+            startPacket[0] = 0x01;
+            new DataView(startPacket.buffer).setUint32(1, data.byteLength, false);
+            await char.writeValueWithoutResponse(startPacket);
+
+            /* 2. Send data chunks: 0x02 (middle) or 0x03 (final) + data */
+            var totalChunks = Math.ceil(data.byteLength / CHUNK_SIZE);
+            for (var i = 0; i < totalChunks; i++) {
+                var offset = i * CHUNK_SIZE;
+                var end = Math.min(offset + CHUNK_SIZE, data.byteLength);
+                var isLast = (end === data.byteLength);
+                var chunkData = data.slice(offset, end);
+                var packet = new Uint8Array(1 + chunkData.byteLength);
+                packet[0] = isLast ? 0x03 : 0x02;
+                packet.set(chunkData, 1);
+                await char.writeValueWithoutResponse(packet);
+
+                /* Update progress */
+                var pct = Math.round(((i + 1) / totalChunks) * 100);
+                setStatus("傳輸中... " + pct + "% (" + (i + 1) + "/" + totalChunks + " chunks)", "info");
+
+                /* Small delay between chunks for reliability */
+                await new Promise(function(r) { setTimeout(r, 15); });
+            }
+        }
+    }
+
+    /* ==== Step 1: 發送圖片 + 靜音 ==== */
+    document.getElementById("connectBtn").addEventListener("click", async function() {
+        if (!navigator.bluetooth) {
+            setStatus("此瀏覽器不支援 Web Bluetooth API，請使用 Chrome 或 Edge。", "error");
+            return;
+        }
+
+        try {
+            setStatus("正在搜尋藍牙裝置...\n請在彈出視窗中選擇 Kiosk 設備。", "info");
+            await connectAndGetCharacteristic();
+
+            var interval = parseInt(document.getElementById("interval").value) || 3;
+
+            /* Determine image source: local files or URLs */
+            var images;
+            if (localDataUris.length > 0) {
+                images = localDataUris;
+                setStatus("正在透過 BLE 傳送 " + images.length + " 張本地圖片...", "info");
+            } else {
+                var imagesRaw = document.getElementById("images").value;
+                images = imagesRaw.split("\n").map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; });
+                setStatus("正在發送輪播指令（" + images.length + " 張圖片）...", "info");
+            }
+
+            await sendCommand({
+                action: "play_carousel",
+                interval: interval,
+                images: images
+            });
+
+            setStatus("圖片已發送，Kiosk 已靜音。\n點擊下方紅色按鈕切換到輪播畫面。", "success");
+
+            /* 顯示 Step 2 按鈕和音量控制 */
+            document.getElementById("showBtn").classList.add("visible");
+            document.getElementById("volumePanel").classList.add("visible");
+
+        } catch (error) {
+            if (error.name === "NotFoundError") {
+                setStatus("未選擇任何裝置，操作已取消。", "error");
+            } else if (error.name === "SecurityError") {
+                setStatus("安全性錯誤：請確認已授予瀏覽器藍牙與位置權限。\nChrome > 設定 > 網站設定 > 藍牙 / 位置", "error");
+            } else if (error.name === "NetworkError") {
+                setStatus("連線失敗：該裝置未提供預期的 BLE Service。\n請確認 Kiosk 上的 KioskReceiver App 已啟動。", "error");
+            } else {
+                setStatus("錯誤：" + error.name + "\n" + error.message, "error");
+            }
+        }
+    });
+
+    /* ==== Step 2: 切換到輪播畫面 ==== */
+    document.getElementById("showBtn").addEventListener("click", async function() {
+        try {
+            setStatus("正在切換 Kiosk 畫面...", "info");
+
+            await sendCommand({ action: "show_app" });
+
+            setStatus("畫面已切換。Kiosk 現在應顯示圖片輪播。", "success");
+        } catch (error) {
+            setStatus("切換失敗，正在重新連線...\n" + error.message, "error");
+            cachedDevice = null;
+            cachedCharacteristic = null;
+        }
+    });
+
+    /* ==== 音量控制 ==== */
+    var volumeSlider = document.getElementById("volumeSlider");
+    var volumeLabel = document.getElementById("volumeLabel");
+
+    volumeSlider.addEventListener("input", function() {
+        volumeLabel.textContent = volumeSlider.value + "%";
+    });
+
+    volumeSlider.addEventListener("change", function() {
+        setVolume(parseInt(volumeSlider.value));
+    });
+
+    async function setVolume(val) {
+        volumeSlider.value = val;
+        volumeLabel.textContent = val + "%";
+        try {
+            await sendCommand({ action: "set_volume", volume: val });
+            setStatus("音量已設定為 " + val + "%", "success");
+        } catch (error) {
+            setStatus("音量設定失敗：" + error.message, "error");
+            cachedDevice = null;
+            cachedCharacteristic = null;
+        }
+    }
+</script>
+
+</body>
+</html>
